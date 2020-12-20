@@ -1,0 +1,55 @@
+<< webs.conf >>
+
+Listen {{ http_portno }}
+
+<Virtualhost {{ ansible_facts ['default_ipv4']['address'] }}:{{ http_portno }}>
+DocumentRoot {{ document_root }}
+</Virtualhost>
+
+================================================================================================================================================================================
+
+<< main_playbook.yml >>
+
+- hosts: all
+  vars_prompt:
+       - name: "document_root"
+         prompt: "Enter your document root name"
+         private: no
+       - name: "http_portno"
+         prompt: "Enter the port no"
+         private: no
+  tasks:
+         - name: Install httpd software
+           package:
+             name: httpd
+             state: present
+           register: z
+         - name: Creating folder
+           file:
+             name: "{{ document_root }}"
+             state: directory
+         - name: Copy the configuration file
+           template:
+             dest: "etc/httpd/conf.d/https.conf"
+             src: "webs.conf"
+           when: z.rc==0
+           notify: Restart service
+         - name: Copy html code to document root
+           copy: 
+             dest: "{{ document_root }}"
+             src: "web.html"
+         - name: Start httpd service
+           service:
+             name: "httpd"
+             state: started
+             enabled: yes
+         - firewalld:
+             port: "{{ http_portno }}/tcp"
+             state: enabled
+             permanent: yes
+             immediate: yes
+  handlers:
+         - name: Restart service
+           service:
+             name: "httpd"
+             state: restarted
